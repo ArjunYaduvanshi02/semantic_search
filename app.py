@@ -4,7 +4,9 @@ import pickle
 from sentence_transformers import SentenceTransformer, util
 from PIL import Image
 import io
-
+import requests
+from io import BytesIO
+import json  # Import the json module for parsing
 # Load the saved Sentence Transformer model
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -50,11 +52,34 @@ if prompt:
         st.write(f"**Score:** {top_scores[i]:.4f}")
         st.write(f"**Description:** {top_descriptions[i]}")
 
-        # Display the image
-        image_path = top_images[i]
+        # Parse the string representation of the list into an actual list
         try:
-            with open(image_path, "rb") as img_file:
-                st.image(img_file.read(), caption=f"Image {i + 1}")
-        except Exception as e:
-            st.write(image_path)
+            image_urls_list = json.loads(top_images[i])
+
+            if isinstance(image_urls_list, list):
+                # Create columns for image display
+                num_columns = 3
+                columns = st.columns(num_columns)
+
+                for j, image_url in enumerate(image_urls_list):
+                    try:
+                        # Check if image_url is valid
+                        if isinstance(image_url, str) and image_url.startswith("http"):
+                            # Fetch the image from the URL
+                            response = requests.get(image_url)
+                            response.raise_for_status()  # Check for request errors
+                            image = Image.open(BytesIO(response.content))
+
+                            # Determine which column to place the image in
+                            col_index = j % num_columns
+                            with columns[col_index]:
+                                st.image(image, caption=f"Image {i + 1}-{j + 1}")
+                        else:
+                            st.write(f"Invalid URL: {image_url}")
+                    except Exception as e:
+                        st.write(f"Error loading image {i + 1}-{j + 1}: {e}")
+            else:
+                st.write(f"Expected a list of URLs but got: {image_urls_list}")
+        except json.JSONDecodeError as e:
+            st.write(f"Error parsing image URLs for entry {i + 1}: {e}")
 
